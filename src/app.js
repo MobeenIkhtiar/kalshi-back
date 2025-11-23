@@ -5,7 +5,12 @@ import sequelize from './config/database.js';
 import kalshiRoutes from './routes/kalshi.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import kalshiConnectionRoutes from './routes/kalshi-connection.routes.js';
+import ordersRoutes from './routes/orders.routes.js';
+import marketRoutes from './routes/market.routes.js';
+import watchlistRoutes from './routes/watchlist.routes.js';
+import contactRoutes from './routes/contact.routes.js';
 import User from './models/User.js';
+import Watchlist from './models/Watchlist.js';
 import { successResponse } from './utils/responses.js';
 
 dotenv.config();
@@ -25,6 +30,10 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/kalshi', kalshiRoutes);
 app.use('/api/kalshi-connection', kalshiConnectionRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/markets', marketRoutes);
+app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Connect to DB and sync models
 (async () => {
