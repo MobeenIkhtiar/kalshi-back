@@ -10,17 +10,30 @@ dotenv.config();
 const createTransporter = () => {
     // SMTP configuration from environment variables
     const smtpConfig = {
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        host: process.env.SMTP_HOST || 'smtp.mail.yahoo.com',
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
         auth: {
             user: process.env.SMTP_USER, // Your email (e.g., no-reply@yourdomain.com)
             pass: process.env.SMTP_PASSWORD // Your email password or app password
-        }
+        },
+        // Yahoo-specific settings
+        tls: {
+            // Do not fail on invalid certificates
+            rejectUnauthorized: false
+        },
+        // Connection timeout
+        connectionTimeout: 10000,
+        // Greeting timeout
+        greetingTimeout: 10000,
+        // Socket timeout
+        socketTimeout: 10000
     };
 
-    // For Gmail, you might need to use an App Password instead of regular password
-    // For other providers, adjust the config accordingly
+    // For Yahoo Mail:
+    // 1. You MUST use an App Password, not your regular password
+    // 2. The FROM_EMAIL must match the SMTP_USER (authenticated email)
+    // 3. Enable "Less secure app access" or use App Password from Yahoo Account Security
 
     return nodemailer.createTransport(smtpConfig);
 };
@@ -36,44 +49,31 @@ const createTransporter = () => {
  */
 export const sendContactEmail = async ({ name, email, message, attachments = [] }) => {
     try {
-        console.log('Creating transporter');
         const transporter = createTransporter();
-        console.log('Transporter created');
 
         const supportEmail = process.env.SUPPORT_EMAIL || 'support@yourdomain.com';
-        const fromEmail = process.env.FROM_EMAIL || 'no-reply@yourdomain.com';
-        console.log('Support email:', supportEmail);
-        console.log('From email:', fromEmail);
-        console.log('User email:', email);
-        console.log('Number of attachments:', attachments.length);
-        
-        // Process attachments safely
-        const processedAttachments = attachments.length > 0 ? attachments.map((file, index) => {
-            // Extract file extension from mimetype or use default
-            let extension = 'jpg';
-            if (file.mimetype && file.mimetype.includes('/')) {
-                extension = file.mimetype.split('/')[1];
-            } else if (file.originalname) {
-                const extMatch = file.originalname.match(/\.([^.]+)$/);
-                if (extMatch) extension = extMatch[1];
-            }
-            
-            return {
-                filename: file.originalname || `image-${index + 1}.${extension}`,
-                content: file.buffer,
-                contentType: file.mimetype || 'image/jpeg'
-            };
-        }) : [];
-        
-        console.log('Processed attachments:', processedAttachments.length);
-        
+        // For Yahoo, FROM_EMAIL must match SMTP_USER (the authenticated email)
+        // If FROM_EMAIL is not set, use SMTP_USER as fallback
+        const smtpUser = process.env.SMTP_USER;
+        const fromEmail = process.env.FROM_EMAIL || smtpUser || 'no-reply@yourdomain.com';
+
+        // Ensure FROM_EMAIL matches SMTP_USER for Yahoo compatibility
+        // Yahoo requires the sender to be the authenticated user
+        const senderEmail = smtpUser && !process.env.FROM_EMAIL ? smtpUser : fromEmail;
+
+        console.log(process.env.FROM_NAME);
+        console.log('Sender Email:', senderEmail);
+        console.log('SMTP User:', smtpUser);
+        console.log('Support Email:', supportEmail);
+        console.log(name);
+        console.log(email);
+        console.log(message);
+        console.log(attachments);
         // Email content
-        // Note: 'from' must be your authenticated email for SMTP, but we format it to show the user's name
-        // The 'replyTo' field ensures replies go to the user's email address
         const mailOptions = {
-            from: `"${name} (via Contact Form)" <${fromEmail}>`,
+            from: `"${process.env.FROM_NAME || 'Contact Form'}" <${senderEmail}>`,
             to: supportEmail,
-            replyTo: `${name} <${email}>`, // This allows support to reply directly to the user
+            replyTo: email, // This allows support to reply directly to the user
             subject: `New Contact Form Message from ${name}`,
             html: `
                 <!DOCTYPE html>
@@ -169,7 +169,7 @@ export const sendContactEmail = async ({ name, email, message, attachments = [] 
                                 <div class="attachments">
                                     <p>${attachments.length} image${attachments.length > 1 ? 's' : ''} attached</p>
                                     <ul class="attachments-list">
-                                        ${attachments.map((att, idx) => `<li>${att.originalname || `image-${idx + 1}`}</li>`).join('')}
+                                        ${attachments.map(att => `<li>${att.filename || 'image'}</li>`).join('')}
                                     </ul>
                                 </div>
                             </div>
@@ -196,13 +196,16 @@ ${message}
 This email was sent from the contact form on your website.
 You can reply directly to this email to respond to ${name}.
             `.trim(),
-            attachments: processedAttachments
+            attachments: attachments.map((file, index) => ({
+                filename: file.originalname || `image-${index + 1}.${file.mimetype.split('/')[1]}`,
+                content: file.buffer,
+                contentType: file.mimetype
+            }))
         };
 
         // Send email
-        console.log('Sending email');
         const info = await transporter.sendMail(mailOptions);
-        console.log('Email sent');
+        
         return {
             success: true,
             messageId: info.messageId,

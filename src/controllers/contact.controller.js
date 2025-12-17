@@ -79,19 +79,8 @@ export const submitContact = async (req, res) => {
             attachments: files // Pass files as attachments
         };
 
-        // Log file information for debugging
-        if (files.length > 0) {
-            console.log(`Processing ${files.length} attachment(s):`);
-            files.forEach((file, index) => {
-                console.log(`  File ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
-            });
-        } else {
-            console.log('No file attachments in this submission');
-        }
-
         // Send email
         try {
-            console.log('Sending email to:', sanitizedData.email);
             const emailResult = await sendContactEmail(sanitizedData);
             
             return successResponse(res, 'Contact form submitted successfully. We will get back to you soon!', {
